@@ -1,0 +1,7 @@
+i want to build out an app with AI. i will be using claude code to build it. i want to import a csv file into supabase as a table. the app will read data from the table and then offer the user a search prompt that will be used to search columns and select rows. fields from that row will then be displayed on the page in cards. What do you think about this idea and what features would you add?
+
+i dont want to compare products or bulk prices, have price range and pack size features, 
+
+the database has supplier name, VMP name which is the product type, AMP Name which is the product name, QTY which is the number in a pack, Price which is the cost and Prod Ord No which is the order code. Pk Ord No also could hold the order code. first, use a field for a search for the order number. If found, the contents of that row will be shown. there will be a favourite icon which will put the product details into a card if selected. 
+
+What do you think about this idea and what features would you add?
