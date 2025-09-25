@@ -26,9 +26,8 @@ export function YearlyTotalSummary({ products, usageData }: YearlyTotalSummaryPr
   })
 
   // Format price in pounds
-  const formatPrice = (priceInPence: number) => {
-    const pounds = priceInPence / 100
-    return pounds.toFixed(2)
+  const formatPrice = (priceInPounds: number) => {
+    return priceInPounds.toFixed(2)
   }
 
   // Don't show if no products have usage data
@@ -61,7 +60,7 @@ export function YearlyTotalSummary({ products, usageData }: YearlyTotalSummaryPr
           <div className="flex items-center gap-2 bg-white/60 rounded-lg px-4 py-2 border border-purple-200">
             <Calculator className="h-4 w-4 text-purple-600" />
             <span className="text-sm text-purple-800">
-              Based on usage patterns entered below
+              Based on usage patterns of favourites entered below
             </span>
           </div>
         </div>

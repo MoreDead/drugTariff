@@ -61,7 +61,7 @@ export const calculateYearlyCost = (product: Product, usage: ProductUsage): numb
   // If UOM QTY contains "ml", use pack price instead of unit price
   const hasMLUnit = product["UOM QTY"] && product["UOM QTY"].toLowerCase().includes('ml')
   const qty = parseInt(product["QTY"]) || 0
-  const price = product["Price"] || 0 // Price is already in pounds
+  const price = (product["Price"] || 0) / 100 // Convert from pence to pounds
   
   const pricePerUse = hasMLUnit 
     ? price  // Use pack price for ml products

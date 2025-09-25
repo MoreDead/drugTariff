@@ -2,9 +2,8 @@
 
 import { useState } from 'react'
 import React from 'react'
-import { SearchForm } from '@/components/SearchForm'
+import { SearchForm, SearchCriteria } from '@/components/SearchForm'
 import { ProductCard } from '@/components/ProductCard'
-import { SmartSearchPopup } from '@/components/SmartSearchPopup'
 import { CSVImport } from '@/components/CSVImport'
 import { AuthDialog } from '@/components/AuthDialog'
 import { YearlyTotalSummary } from '@/components/YearlyTotalSummary'
@@ -15,11 +14,9 @@ import { Database, Upload } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
 export default function HomePage() {
-  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [searchCriteria, setSearchCriteria] = useState<SearchCriteria | null>(null)
   const [usageData, setUsageData] = useState<Record<string, ProductUsage>>({})
-  const [isSmartSearchOpen, setIsSmartSearchOpen] = useState(false)
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([])
-  const [searchTrigger, setSearchTrigger] = useState(0)
   const { favorites, loadFavorites, favoritesWithUsage, searchHistory, removeFromSearchHistory, isInSearchHistory } = useFavoritesStore()
 
   // Check if database has existing data
@@ -62,12 +59,84 @@ export default function HomePage() {
   const hasExistingData = (productCount || 0) > 0
 
 
-  const handleSmartSearch = (query: string) => {
-    setSearchQuery(query)
-    setSearchTrigger(prev => prev + 1)
-    setIsSmartSearchOpen(true)
-    // Clear previously selected products from popup when doing new search
+  const handleSearch = async (criteria: SearchCriteria) => {
+    console.log('handleSearch called with criteria:', criteria)
+    setSearchCriteria(criteria)
+
+    // Clear previous search results
     setSelectedProducts([])
+
+    try {
+      const results = await performStructuredSearch(criteria)
+      console.log('Search results:', results)
+      if (results.length > 0) {
+        handleSelectProducts(results)
+      } else {
+        console.log('No results found')
+      }
+    } catch (error) {
+      console.error('Search failed:', error)
+    }
+  }
+
+  // New structured search function
+  const performStructuredSearch = async (criteria: SearchCriteria): Promise<Product[]> => {
+    try {
+      let query = supabase.from('product').select('*')
+
+      // Priority logic: if order number is provided, search only order numbers
+      if (criteria.orderNumber) {
+        console.log('Searching order numbers only:', criteria.orderNumber)
+        query = query.ilike('"Order number"', `%${criteria.orderNumber}%`)
+      } else {
+        // Combined search logic
+        console.log('Performing combined search:', criteria)
+
+        // Product name search (if provided)
+        if (criteria.productName) {
+          const words = criteria.productName.trim().split(/\s+/).filter(word => word.length > 0)
+          words.forEach(word => {
+            query = query.ilike('"Product Name"', `%${word}%`)
+          })
+        }
+
+        // Supplier filter (if provided)
+        if (criteria.supplier) {
+          query = query.eq('"Supplier"', criteria.supplier)
+        }
+
+        // Colour filter (if provided)
+        if (criteria.colour) {
+          query = query.eq('"Colour"', criteria.colour)
+        }
+      }
+
+      const finalQuery = query.order('"Product Name"', { ascending: true }).limit(100)
+      const { data, error } = await finalQuery
+
+      if (error) {
+        console.error('Structured search error:', error)
+        return []
+      }
+
+      let finalResults = data || []
+
+      // Additional filtering for product name search to ensure all words match
+      if (!criteria.orderNumber && criteria.productName) {
+        const words = criteria.productName.trim().split(/\s+/).filter(word => word.length > 0)
+        finalResults = finalResults.filter(product => {
+          const productName = (product["Product Name"] || '').toLowerCase()
+          const lowerWords = words.map(w => w.toLowerCase())
+          return lowerWords.every(word => productName.includes(word))
+        })
+      }
+
+      console.log(`Structured search found ${finalResults.length} results`)
+      return finalResults
+    } catch (err) {
+      console.error('Unexpected structured search error:', err)
+      return []
+    }
   }
 
   const handleSelectProducts = (products: Product[]) => {
@@ -128,21 +197,29 @@ export default function HomePage() {
 
   // Combine favorites, search history, and selected products for display
   const displayedProducts = React.useMemo(() => {
-    // Start with favorites (these don't have delete icons)
+    // Favorites should already be sorted alphabetically from the store
     const favoriteProducts = favorites || []
-    
+
     // Add search history items that aren't already favorites (these have delete icons)
-    const searchOnlyProducts = searchHistory.filter(searchProduct => 
+    const searchOnlyProducts = searchHistory.filter(searchProduct =>
       !favoriteProducts.some(fav => fav.id === searchProduct.id)
     )
-    
+
     // Add selected products from popups that aren't already in favorites or search history
     const popupSelectedProducts = selectedProducts.filter(selectedProduct =>
       !favoriteProducts.some(fav => fav.id === selectedProduct.id) &&
       !searchOnlyProducts.some(search => search.id === selectedProduct.id)
     )
-    
-    return [...favoriteProducts, ...searchOnlyProducts, ...popupSelectedProducts]
+
+    // Combine all unfavorited products and sort them alphabetically
+    const allUnfavoritedProducts = [...popupSelectedProducts, ...searchOnlyProducts].sort((a, b) => {
+      const nameA = (a["Product Name"] || '').toLowerCase()
+      const nameB = (b["Product Name"] || '').toLowerCase()
+      return nameA.localeCompare(nameB)
+    })
+
+    // Order: unfavorited products (alphabetically sorted) first, then favorites (alphabetically sorted)
+    return [...allUnfavoritedProducts, ...favoriteProducts]
   }, [favorites, searchHistory, selectedProducts])
 
   return (
@@ -186,12 +263,6 @@ export default function HomePage() {
               <span className="text-green-800 text-sm">
                 Product database is ready with {productCount} products
               </span>
-              <button
-                onClick={() => setIsSmartSearchOpen(true)}
-                className="ml-4 text-blue-600 hover:text-blue-800 underline text-sm"
-              >
-                Debug: Show Sample Order Codes
-              </button>
             </div>
           </div>
         )}
@@ -215,8 +286,8 @@ export default function HomePage() {
 
         {/* Search Form */}
         <div className="mb-8">
-          <SearchForm 
-            onSearch={handleSmartSearch}
+          <SearchForm
+            onSearch={handleSearch}
           />
         </div>
 
@@ -263,14 +334,6 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* Smart Search Popup */}
-      <SmartSearchPopup
-        isOpen={isSmartSearchOpen}
-        onClose={() => setIsSmartSearchOpen(false)}
-        onSelectProducts={handleSelectProducts}
-        searchQuery={searchQuery}
-        searchTrigger={searchTrigger}
-      />
 
       {/* Floating Favorites Panel */}
       <FavoritesPanel />

@@ -31,14 +31,23 @@ export const useFavoritesStore = create<FavoritesState>()(
       addFavorite: async (product: Product, usage = { frequency: 1, period: 'month' as UsagePeriod }) => {
         set({ loading: true })
         try {
-          set((state) => ({
-            favorites: [...state.favorites, product],
-            favoritesWithUsage: {
-              ...state.favoritesWithUsage,
-              [product.id]: usage
-            },
-            loading: false,
-          }))
+          set((state) => {
+            // Insert product in alphabetical order by Product Name
+            const newFavorites = [...state.favorites, product].sort((a, b) => {
+              const nameA = (a["Product Name"] || '').toLowerCase()
+              const nameB = (b["Product Name"] || '').toLowerCase()
+              return nameA.localeCompare(nameB)
+            })
+
+            return {
+              favorites: newFavorites,
+              favoritesWithUsage: {
+                ...state.favoritesWithUsage,
+                [product.id]: usage
+              },
+              loading: false,
+            }
+          })
         } catch (error) {
           set({ loading: false })
           throw error
@@ -105,7 +114,15 @@ export const useFavoritesStore = create<FavoritesState>()(
         set({ loading: true })
         try {
           // For local storage version, favorites are automatically loaded by persist middleware
-          set({ loading: false })
+          // But we need to sort them alphabetically
+          set((state) => ({
+            favorites: [...state.favorites].sort((a, b) => {
+              const nameA = (a["Product Name"] || '').toLowerCase()
+              const nameB = (b["Product Name"] || '').toLowerCase()
+              return nameA.localeCompare(nameB)
+            }),
+            loading: false
+          }))
         } catch (error) {
           console.error('Error loading favorites:', error)
           set({ favorites: [], favoritesWithUsage: {}, searchHistory: [], loading: false })

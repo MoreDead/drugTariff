@@ -24,7 +24,7 @@ export function ProductCard({ product, onUsageChange, onDelete, showDeleteIcon =
   const [isMinimized, setIsMinimized] = useState(false)
   // Initialize frequency and period from local storage if available
   const savedUsage = getFavoriteUsage(product.id)
-  const [frequency, setFrequency] = useState<number>(savedUsage?.frequency || 1)
+  const [frequency, setFrequency] = useState<number>(savedUsage?.frequency || 0)
   const [period, setPeriod] = useState<UsagePeriod>(savedUsage?.period || 'month')
   
   // Update local state when saved usage data becomes available (after store rehydration)
@@ -50,9 +50,10 @@ export function ProductCard({ product, onUsageChange, onDelete, showDeleteIcon =
     return priceInPounds / quantity
   }
 
-  const packPrice = product["pricePounds"] || formatPrice(product["Price"])
+  const packPriceNumeric = (product["Price"] || 0) / 100 // Convert from pence to pounds
+  const packPrice = product["pricePounds"] || formatPrice(packPriceNumeric)
   const qty = parseInt(product["QTY"]) || 0
-  const unitPrice = calculateUnitPrice(product["Price"], qty)
+  const unitPrice = calculateUnitPrice(packPriceNumeric, qty)
   const unitPriceFormatted = formatPrice(unitPrice)
   
   // Calculate yearly cost if usage data is provided
@@ -104,7 +105,7 @@ export function ProductCard({ product, onUsageChange, onDelete, showDeleteIcon =
       : ''
     )
     const displayUnitPrice = hasMLUnit ? packPrice : unitPriceFormatted
-    
+
     const details = `Product: ${product["Product Name"]}
 Category: ${product["Category"]}
 Supplier: ${product["Supplier"]}
@@ -112,8 +113,8 @@ Colour: ${product["Colour"]}
 Size/Weight: ${product["sz/wt"]}
 Quantity: ${packQuantityDisplay}
 Amount: ${product["Amount"]}
-Pack Price: £${packPrice}
-Unit Price: £${displayUnitPrice}
+Pack Price: ${product["pricePounds"] || `£${packPrice}`}
+Unit Price: £${unitPriceFormatted}
 Order Code: ${product["Order number"]}`
 
     try {
@@ -128,14 +129,14 @@ Order Code: ${product["Order number"]}`
   }
 
   const handleFrequencyChange = (value: string) => {
-    const newFreq = parseInt(value) || 0
+    const newFreq = value === '' ? 0 : parseInt(value) || 0
     setFrequency(newFreq)
-    
+
     // Update local state if this is a favorite
     if (isFavorite(product.id)) {
       updateFavoriteUsage(product.id, { frequency: newFreq, period })
     }
-    
+
     // Also update parent component
     if (onUsageChange) {
       onUsageChange(product.id, { productId: product.id, frequency: newFreq, period })
@@ -157,20 +158,16 @@ Order Code: ${product["Order number"]}`
   }
 
   return (
-    <Card className={`w-full max-w-2xl mx-auto ${isFavorite(product.id) ? 'ring-2 ring-purple-300 bg-purple-50/50' : ''} ${isMinimized ? 'py-0' : ''}`}>
-      <CardHeader className={isMinimized ? "pb-0 pt-2 px-6" : "pb-4"}>
-        <div className="flex items-start justify-between">
+    <Card
+      className={`w-full max-w-2xl mx-auto ${isFavorite(product.id) ? 'ring-2 ring-purple-300 bg-purple-50/50' : ''}`}
+      style={isMinimized ? { paddingTop: 0, paddingBottom: 0 } : {}}
+    >
+      {isMinimized ? (
+        <div className="px-6 pt-1 pb-0 flex items-start justify-between">
           <div className="flex-1">
-            <div className={`flex items-center gap-2 ${isMinimized ? "mb-0" : "mb-2"}`}>
-              <CardTitle className="text-xl font-semibold text-gray-900">
-                {product["Product Name"]}
-              </CardTitle>
-            </div>
-            {!isMinimized && (
-              <Badge variant="secondary" className="mb-2">
-                {product["Category"]}
-              </Badge>
-            )}
+            <CardTitle className="text-xl font-semibold text-gray-900 mb-0">
+              {product["Product Name"]}
+            </CardTitle>
           </div>
           <div className="flex items-center gap-1">
             <Button
@@ -178,13 +175,9 @@ Order Code: ${product["Order number"]}`
               size="sm"
               onClick={handleToggleMinimize}
               className="p-2 text-gray-400 hover:text-gray-600"
-              title={isMinimized ? 'Expand card' : 'Minimize card'}
+              title="Expand card"
             >
-              {isMinimized ? (
-                <ChevronDown className="h-5 w-5" />
-              ) : (
-                <ChevronUp className="h-5 w-5" />
-              )}
+              <ChevronDown className="h-5 w-5" />
             </Button>
             {showDeleteIcon && (
               <Button
@@ -203,26 +196,87 @@ Order Code: ${product["Order number"]}`
               onClick={handleFavoriteToggle}
               disabled={loading}
               className={`p-2 ${
-                isFavorite(product.id) 
-                  ? 'text-red-500 hover:text-red-600' 
+                isFavorite(product.id)
+                  ? 'text-red-500 hover:text-red-600'
                   : 'text-gray-400 hover:text-red-500'
               }`}
               title={isFavorite(product.id) ? 'Remove from favorites' : 'Add to favorites'}
             >
-              <Heart 
+              <Heart
                 className={`h-5 w-5 ${
                   isFavorite(product.id) ? 'fill-current' : ''
-                }`} 
+                }`}
               />
             </Button>
           </div>
         </div>
-      </CardHeader>
+      ) : (
+        <CardHeader className="pb-0">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <CardTitle className="text-xl font-semibold text-gray-900">
+                  {product["Product Name"]}
+                </CardTitle>
+              </div>
+              <Badge variant="secondary" className="mb-0">
+                {product["Category"]}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleToggleMinimize}
+                className="p-2 text-gray-400 hover:text-gray-600"
+                title="Minimize card"
+              >
+                <ChevronUp className="h-5 w-5" />
+              </Button>
+              {showDeleteIcon && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDelete}
+                  className="p-2 text-gray-400 hover:text-red-500"
+                  title="Remove from search results"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleFavoriteToggle}
+                disabled={loading}
+                className={`p-2 ${
+                  isFavorite(product.id)
+                    ? 'text-red-500 hover:text-red-600'
+                    : 'text-gray-400 hover:text-red-500'
+                }`}
+                title={isFavorite(product.id) ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <Heart
+                  className={`h-5 w-5 ${
+                    isFavorite(product.id) ? 'fill-current' : ''
+                  }`}
+                />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+      )}
       
       {isMinimized ? (
-        <CardContent className="pt-0 pb-3 px-6">
-          <div className="text-2xl font-bold text-purple-600">
-            £{yearlyCostFormatted} <span className="text-sm text-gray-600 font-normal">yearly cost</span>
+        <CardContent className="pt-0 pb-0 px-6 -mt-6">
+          <div className="text-2xl font-bold text-purple-600 leading-tight">
+            {frequency > 0 ? (
+              <>
+                {frequency} <span className="text-sm text-gray-600 font-normal">per {period}</span>
+              </>
+            ) : (
+              <span className="text-lg text-gray-500 font-normal">No usage set</span>
+            )}
           </div>
         </CardContent>
       ) : (
@@ -262,16 +316,14 @@ Order Code: ${product["Order number"]}`
           <div>
             <h4 className="font-medium text-gray-700 mb-1">Pack Price</h4>
             <p className="text-2xl font-bold text-green-600">
-              £{packPrice}
+              {product["pricePounds"] || `£${packPrice}`}
             </p>
           </div>
           
           <div>
             <h4 className="font-medium text-gray-700 mb-1">Unit Price</h4>
             <p className="text-lg font-semibold text-blue-600">
-              £{product["UOM QTY"] && product["UOM QTY"].toLowerCase().includes('ml') 
-                ? packPrice 
-                : unitPriceFormatted}
+              £{unitPriceFormatted}
             </p>
             <p className="text-xs text-gray-500">per individual item</p>
           </div>
@@ -281,58 +333,60 @@ Order Code: ${product["Order number"]}`
             <p className="text-gray-900 font-mono text-sm">{product["Order number"]}</p>
           </div>
         </div>
-        
-        {/* Yearly Cost Calculator */}
-        <div className="border-t pt-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <Calculator className="h-4 w-4 text-blue-600" />
-            <h4 className="font-medium text-gray-700">Yearly Cost Calculator</h4>
-          </div>
-          
-          <div className="flex flex-wrap gap-4 items-end">
-            <div className="flex-1 min-w-[120px]">
-              <label className="text-sm font-medium text-gray-700 mb-1 block">
-                Usage Frequency
-              </label>
-              <Input
-                type="number"
-                min="0"
-                step="1"
-                value={frequency}
-                onChange={(e) => handleFrequencyChange(e.target.value)}
-                className="w-full"
-                placeholder="Enter frequency"
-              />
+
+        {/* Yearly Cost Calculator - Only show for favorited products */}
+        {isFavorite(product.id) && (
+          <div className="border-t pt-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <Calculator className="h-4 w-4 text-blue-600" />
+              <h4 className="font-medium text-gray-700">Yearly Cost Calculator</h4>
             </div>
-            
-            <div className="flex-1 min-w-[120px]">
-              <label className="text-sm font-medium text-gray-700 mb-1 block">
-                Per Period
-              </label>
-              <Select value={period} onValueChange={handlePeriodChange}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="day">Day</SelectItem>
-                  <SelectItem value="week">Week</SelectItem>
-                  <SelectItem value="month">Month</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="flex-1 min-w-[140px]">
-              <label className="text-sm font-medium text-gray-700 mb-1 block">
-                Yearly Cost
-              </label>
-              <div className="text-2xl font-bold text-purple-600">
-                £{yearlyCostFormatted}
+
+            <div className="flex flex-wrap gap-4 items-end">
+              <div className="flex-1 min-w-[120px]">
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  Usage Frequency
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={frequency === 0 ? '' : frequency}
+                  onChange={(e) => handleFrequencyChange(e.target.value)}
+                  className="w-full"
+                  placeholder="Enter frequency"
+                />
+              </div>
+
+              <div className="flex-1 min-w-[120px]">
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  Per Period
+                </label>
+                <Select value={period} onValueChange={handlePeriodChange}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="day">Day</SelectItem>
+                    <SelectItem value="week">Week</SelectItem>
+                    <SelectItem value="month">Month</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex-1 min-w-[140px]">
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  Yearly Cost
+                </label>
+                <div className="text-2xl font-bold text-purple-600">
+                  £{yearlyCostFormatted}
+                </div>
               </div>
             </div>
-          </div>
-          
 
-        </div>
+
+          </div>
+        )}
         
         <div className="flex gap-2 pt-4 border-t">
           <Button

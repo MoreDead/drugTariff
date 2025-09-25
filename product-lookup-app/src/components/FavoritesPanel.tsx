@@ -108,7 +108,7 @@ export function FavoritesPanel() {
                   </div>
                   <div className="flex items-center gap-2 ml-2">
                     <span className="text-sm font-semibold text-green-600">
-                      £{product["pricePounds"] || product["Price"].toFixed(2)}
+                      {product["pricePounds"] || `£${product["Price"].toFixed(2)}`}
                     </span>
                     <Button
                       variant="ghost"
